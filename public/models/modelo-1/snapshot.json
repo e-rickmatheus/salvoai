@@ -1,0 +1,9 @@
+{
+  "name": "Modelo 1",
+  "savedAt": "2026-10-12",
+  "files": {
+    "index.html": "178c60aebe424bf0206da8a9d891196a8d080a3081e5792983cf26aa58a1cc6b",
+    "app.js": "33a4fb17147112ad4bfcaa1b3758ca9949c74040c38df40085dcbbde33a291c6",
+    "styles.css": "c38f764da2c2535c6b49cac895d15439de11400f40eb43d5927f43102777e5ea"
+  }
+}

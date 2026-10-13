@@ -1,0 +1,14 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+import { resolve } from 'node:path';
+import { openStore } from '../lib/store.js';
+import { queryItems } from '../lib/query.js';
+const store=openStore(process.env.SALVOAI_DB||resolve(import.meta.dirname,'../data/salvoai.sqlite'));
+const server=new McpServer({name:'salvoai-local',version:'0.2.0'});
+const result=data=>({content:[{type:'text',text:JSON.stringify(data)}]});
+server.registerTool('search_saved',{description:'Busca por palavras no acervo pessoal local, incluindo notas e textos extraídos.',inputSchema:{query:z.string().max(4000),category:z.string().optional()}},async({query,category})=>result(queryItems(store.all(),{q:query,category}).slice(0,30).map(({coverData,...x})=>x)));
+server.registerTool('read_saved',{description:'Lê um item do acervo local e seus textos derivados.',inputSchema:{id:z.string()}},async({id})=>{const item=store.all().find(x=>x.id===id);if(!item)return {isError:true,...result({error:'Item não encontrado'})};const {coverData,...out}=item;return result(out);});
+server.registerTool('list_folders',{description:'Lista coleções e categorias do acervo local.',inputSchema:{}},async()=>result({collections:store.collections(),categories:store.categories()}));
+server.registerTool('list_saved',{description:'Lista metadados dos últimos 30 salvos.',inputSchema:{}},async()=>result(queryItems(store.all(),{sort:'new'}).slice(0,30).map(x=>({id:x.id,title:x.title,url:x.originalUrl,platform:x.platform,category:x.category}))));
+await server.connect(new StdioServerTransport());
