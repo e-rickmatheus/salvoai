@@ -40,7 +40,11 @@ return async function handler(req,res) {
       if(req.method!=='POST')return json(405,{error:'Método inválido.'});
       if(req.headers.origin!==origin)return json(403,{error:'Origem não autorizada.'});
       const config=authConfig(env);
-      if(path==='/api/auth/logout') {res.setHeader('Set-Cookie',clearSessionCookies());return json(200,{ok:true});}
+      if(path==='/api/auth/logout') {
+        try {const session=await authenticateRequest(req,config);if(session?.token)await authRequest('logout?scope=local',{method:'POST',token:session.token,config});}
+        finally {res.setHeader('Set-Cookie',clearSessionCookies());}
+        return json(200,{ok:true});
+      }
       const body=await readAuthBody(req);
       if(path==='/api/auth/session') {
         if(typeof body.access_token!=='string'||typeof body.refresh_token!=='string')return json(400,{error:'Sessão inválida.'});
@@ -74,6 +78,7 @@ return async function handler(req,res) {
     res.writeHead(output.statusCode);res.end(output.body);
   } catch(error) {
     console.error('SALVOAI: falha na requisição',error.code||error.statusCode||error.name);
+    if(error.statusCode===401&&req.url==='/'){res.setHeader('Set-Cookie',clearSessionCookies());res.writeHead(302,{Location:'/login'});res.end();return;}
     return json(error.statusCode||503,{error:error.statusCode?error.message:'O serviço ainda não está disponível. Verifique a configuração do banco e da autenticação.'});
   }
 };
