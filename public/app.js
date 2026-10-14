@@ -1,3 +1,4 @@
+import { mountDriveBackup,updateBackupNotice,readBackupFile } from '/drive-backup-ui.js';
 import { queryItems } from '/query.js';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -7,7 +8,7 @@ async function api(path,method='GET',body) {
   const data=await response.json();if(response.status===401)location.replace('/login');if(!response.ok)throw Error(data.error || 'Não foi possível concluir a operação.');return data;
 }
 function message(text){$('#message').textContent=text;}
-async function load(){const data=await api('library');state.items=data.items;state.collections=data.collections;state.categories=data.categories||[];state.categoryIcons=data.categoryIcons||{};state.iconBank=data.iconBank||[];$('#collection-names').innerHTML=data.collections.map(n=>`<option value="${esc(n)}"></option>`).join('');render();}
+async function load(){const data=await api('library');state.items=data.items;state.collections=data.collections;state.categories=data.categories||[];state.categoryIcons=data.categoryIcons||{};state.iconBank=data.iconBank||[];$('#collection-names').innerHTML=data.collections.map(n=>`<option value="${esc(n)}"></option>`).join('');render();if(state.cloud)updateBackupNotice(api);}
 function filtered(){const items=queryItems(state.items,{...state,q:state.semanticResults?'':state.q});return state.semanticResults?[...items].filter(x=>state.semanticResults.some(r=>r.id===x.id)).sort((a,b)=>state.semanticResults.findIndex(r=>r.id===a.id)-state.semanticResults.findIndex(r=>r.id===b.id)):items;}
 const icon=(name,cls='')=>`<img class="${cls}" src="/icons/${name}.svg" alt="">`;
 const mobileNavLabels={library:'Salvos',later:'Depois',favorites:'Favoritos',collections:'Coleções',categories:'Categorias',chat:'Chat'};
@@ -124,9 +125,11 @@ function renderSettings(){
   $('#process-all').onclick=async()=>{for(const item of state.items)await api('items/'+item.id+'/process','POST',{mode:'full'});message('Acervo adicionado à fila local. Você pode continuar navegando.');pollJobs();};
 }
 function renderCloudSettings(){
-  $('#content').innerHTML='<section class="panel"><h2>Seu acervo privado</h2><p>Você está usando a versão online. Seus salvos ficam em um banco persistente e são acessíveis apenas pela sua conta.</p><button id="logout">Sair da conta</button></section><section class="panel"><h2>Exportar e fazer backup</h2><p>Baixe seus links, anotações, coleções e categorias em JSON. O arquivo pode ser importado em outra instalação do SALVOAI.</p><a class="export" href="/api/export" download>Exportar acervo em JSON</a></section><section class="panel"><h2>Importar acervo</h2><p>Itens novos são acrescentados. Links já salvos mantêm suas edições. Use um arquivo JSON de até 4 MB por importação.</p><label>Arquivo SALVOAI JSON<input id="import-file" type="file" accept=".json,application/json"></label><button id="import" class="primary">Importar arquivo</button></section><section class="panel"><h2>Processamento no computador</h2><p>Chat, transcrição e busca por significado estão disponíveis na versão local. A versão online permite salvar, buscar por palavras, organizar, editar e enviar capas.</p></section>';
+  $('#content').innerHTML='<section class="panel"><h2>Seu acervo privado</h2><p>Você está usando a versão online. Seus salvos ficam em um banco persistente e são acessíveis apenas pela sua conta.</p><button id="logout">Sair da conta</button></section><section class="panel"><h2>Exportar e fazer backup</h2><p>Baixe seus links, anotações, coleções e categorias em JSON. O arquivo pode ser importado em outra instalação do SALVOAI.</p><a class="export" href="/api/export" download>Exportar acervo em JSON</a></section><section class="panel"><h2>Importar acervo</h2><p>Itens novos são acrescentados. Links já salvos mantêm suas edições. Use um arquivo JSON de até 4 MB por importação.</p><label>Arquivo SALVOAI JSON<input id="import-file" type="file" accept=".json,.gz,application/json,application/gzip"></label><button id="import" class="primary">Importar arquivo</button></section><section class="panel"><h2>Processamento no computador</h2><p>Chat, transcrição e busca por significado estão disponíveis na versão local. A versão online permite salvar, buscar por palavras, organizar, editar e enviar capas.</p></section>';
+  $('#content').insertAdjacentHTML('afterbegin','<section id="drive-backup-panel" class="panel"></section>');
+  mountDriveBackup({api,message,load});
   $('#logout').onclick=async()=>{try{await api('auth/logout','POST',{});location.replace('/login');}catch(e){message(e.message);}};
-  $('#import').onclick=async()=>{const file=$('#import-file').files[0];if(!file){message('Selecione um arquivo JSON.');return;}if(file.size>4*1024*1024){message('Divida a importação em arquivos de até 4 MB.');return;}const b=$('#import');b.disabled=true;try{const result=await api('import','POST',JSON.parse(await file.text()));await load();message(`Importação concluída: ${result.saved} novos itens e ${result.duplicates} duplicatas preservadas.`);}catch(e){message('Importação não realizada: '+e.message);}finally{b.disabled=false;}};
+  $('#import').onclick=async()=>{const file=$('#import-file').files[0];if(!file){message('Selecione um arquivo JSON.');return;}if(file.size>4*1024*1024){message('Divida a importação em arquivos de até 4 MB.');return;}const b=$('#import');b.disabled=true;try{const result=await api('import','POST',await readBackupFile(file));await load();message(`Importação concluída: ${result.saved} novos itens e ${result.duplicates} duplicatas preservadas.`);}catch(e){message('Importação não realizada: '+e.message);}finally{b.disabled=false;}};
 }
 function openAdd(){$('#batch-results').replaceChildren();$('#add-dialog').showModal();$('#links').focus();}
 $('#add').onclick=()=>state.page==='categories'?openCategoryDialog():openAdd();
@@ -209,7 +212,10 @@ async function start(){
     $('.local-badge').textContent='ONLINE / ACERVO PRIVADO';
     $('.workspace-footer>span').lastChild.textContent=' Acervo online · Conta protegida';
   }
+  const driveResult=new URLSearchParams(location.search).get('drive');
+  if(driveResult){state.page='settings';history.replaceState(null,'',location.pathname);}
   await load();
+  if(driveResult==='failed')message('A conexão com o Google Drive não foi concluída. Tente conectar novamente em Ajustes.');
 }
 start().catch(e=>{$('#content').innerHTML='<div class="empty"><h2>Não foi possível carregar o acervo</h2><p>Tente novamente em alguns instantes.</p><button id="retry">Tentar novamente</button></div>';message(e.message);$('#retry').onclick=()=>start().catch(e=>message(e.message));});
 

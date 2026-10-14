@@ -48,7 +48,7 @@ Conferido em 14/10/2026 na [documentação oficial de pausa](https://supabase.co
 
 A pausa não apaga imediatamente o conteúdo. A documentação atual informa até 1 ano para restaurar o projeto pelo painel, preservando dados e configuração. Depois desse prazo, a recuperação pode exigir baixar os backups ainda disponíveis e restaurar em outro projeto; não dependa dessa possibilidade como única cópia. A exclusão definitiva do projeto remove os backups associados. Essas regras podem mudar: consulte a fonte antes de depender dos prazos.
 
-No plano gratuito, o Supabase recomenda [exportações regulares e backups externos](https://supabase.com/docs/guides/platform/backups). A exportação JSON por conta e a ferramenta administrativa abaixo já estão implementadas. Ainda não há agendamento nem destino de backup automático configurado. Uma rotina de consultas pode gerar atividade, mas não substitui um backup externo e não garante disponibilidade. Backups automáticos precisam de destino separado, retenção, criptografia, credenciais privadas e verificação periódica de restauração.
+No plano gratuito, o Supabase recomenda [exportações regulares e backups externos](https://supabase.com/docs/guides/platform/backups). A exportação JSON por conta e a ferramenta administrativa abaixo já estão implementadas. A integração automática com Google Drive está implementada; sua ativação depende das credenciais OAuth e da autorização de cada conta. Veja [configuração do Drive](DRIVE_BACKUP.md). Uma rotina de consultas pode gerar atividade, mas não substitui um backup externo e não garante disponibilidade. Backups automáticos precisam de destino separado, retenção, criptografia, credenciais privadas e verificação periódica de restauração.
 
 ## Trocar o banco mantendo as contas
 

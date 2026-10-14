@@ -72,7 +72,7 @@ export function createHandler(store, { cloud = false, dbPath = ':memory:', origi
         return;
       }
       if(['/modelo-1','/modelo-1/','/modelo-2','/modelo-2/'].includes(url.pathname)){res.writeHead(302,{Location:'/'});return res.end();}
-      const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/styles.css':['styles.css','text/css'],'/premium.css':['premium.css','text/css'],'/base.css':['base.css','text/css']};
+      const files={'/drive-backup-ui.js':['drive-backup-ui.js','text/javascript'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/styles.css':['styles.css','text/css'],'/premium.css':['premium.css','text/css'],'/base.css':['base.css','text/css']};
       if(url.pathname==='/query.js') {res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8'});res.end(await readFile(new URL('./lib/query.js',import.meta.url)));return;}
       const file=files[url.pathname]; if(!file)return json(404,{error:'Página não encontrada.'});
       res.writeHead(200,{'Content-Type':file[1]+'; charset=utf-8'});

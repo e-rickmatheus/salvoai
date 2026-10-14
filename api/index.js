@@ -1,3 +1,5 @@
+import { createBackupService,isLibraryMutation } from '../lib/drive-backup.js';
+import { driveRoutes,validCron } from '../lib/drive-routes.js';
 import { readFile } from 'node:fs/promises';
 import { createHandler } from '../server.js';
 import { withPostgresStore } from '../lib/postgres-store.js';
@@ -20,13 +22,18 @@ export function requestOrigin(req,env=process.env) {
   if(req.headers.host!==url.host)return null;
   return url.origin;
 }
-export function createCloudHandler({env=process.env,authenticateRequest=authenticate,storeRunner=withPostgresStore}={}) {
+export function createCloudHandler({env=process.env,authenticateRequest=authenticate,storeRunner=withPostgresStore,backupService}={}) {
 return async function handler(req,res) {
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
   try {
+    const backups=backupService||createBackupService({env});
+    if(req.url.split('?')[0]==='/api/backup/cron'){
+      if(req.method!=='GET'||!validCron(req,env))return json(401,{error:'Não autorizado.'});
+      const result=await backups.cron();return json(result.failed?503:200,result);
+    }
     const origin=requestOrigin(req,env);if(!origin)return json(403,{error:'Host não autorizado.'});
     if(req.headers.origin&&req.headers.origin!==origin)return json(403,{error:'Origem não autorizada.'});
     const path=new URL(req.url,origin).pathname;
@@ -69,12 +76,22 @@ return async function handler(req,res) {
     }
     if(session.cookies.length)res.setHeader('Set-Cookie',session.cookies);
     if(path==='/')return await createHandler(null,{cloud:true,origin})(req,res);
+    if(path.startsWith('/api/drive/')){
+      try{await driveRoutes(req,res,{user:session.user,origin,service:backups,sessionCookies:session.cookies});}
+      catch(error){json(error.statusCode||400,{error:error.code?.startsWith('DRIVE')?error.message:'Não foi possível concluir a operação de backup. Confira a conexão com o Drive e a cópia escolhida.'});}
+      return;
+    }
     if(['/api/runtime','/api/jobs','/api/ai/status'].includes(path)&&req.method==='GET')return await createHandler(null,{cloud:true,origin})(req,res);
     const output=await storeRunner(async store=>{
       const buffer=responseBuffer();await createHandler(store,{cloud:true,origin})(req,buffer);
       if(buffer.body&&Buffer.byteLength(buffer.body)>4*1024*1024){buffer.writeHead(413,{'Content-Type':'application/json; charset=utf-8'});buffer.end(JSON.stringify({error:'O resultado excedeu o limite online de 4 MB. Exporte o banco pelo painel ou reduza o tamanho das capas.'}));}
+      if(buffer.statusCode<400&&isLibraryMutation(req)&&store.markBackupDirty)await store.markBackupDirty();
       return buffer;
     },{owner:session.user.id,connectionString:env.DATABASE_URL||env.POSTGRES_URL});
+    if(output.statusCode<400&&isLibraryMutation(req)){
+      let result;try{result=await backups.attempt(session.user.id);}catch{result={status:'pending',error:'A cópia no Drive está pendente.'};}
+      if(result.status==='pending'&&typeof output.body==='string'){const data=JSON.parse(output.body);data.driveBackup=result;output.body=JSON.stringify(data);}
+    }
     for(const [name,value] of Object.entries(output.headers))res.setHeader(name,value);
     res.writeHead(output.statusCode);res.end(output.body);
   } catch(error) {
