@@ -200,7 +200,17 @@ $('#delete').onclick=()=>{
 };
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{state.page=b.dataset.page;message('');render();window.scrollTo(0,0);});
 $('#content').textContent='Carregando seu acervo…';
-async function start(){const runtime=await api('runtime');state.cloud=runtime.cloud;$('#process-item').hidden=state.cloud;document.querySelectorAll('[data-page="chat"]').forEach(b=>b.hidden=state.cloud);if(state.cloud)$('.sidebar-bottom>button').setAttribute('aria-label','Ajustes da conta');await load();}
+async function start(){
+  const runtime=await api('runtime');state.cloud=runtime.cloud;
+  $('#process-item').hidden=state.cloud;
+  document.querySelectorAll('[data-page="chat"]').forEach(b=>b.hidden=state.cloud);
+  if(state.cloud){
+    const settings=$('.sidebar-bottom>button');settings.setAttribute('aria-label','Ajustes da conta');settings.lastChild.textContent='Ajustes da conta';
+    $('.local-badge').textContent='ONLINE / ACERVO PRIVADO';
+    $('.workspace-footer>span').lastChild.textContent=' Acervo online · Conta protegida';
+  }
+  await load();
+}
 start().catch(e=>{$('#content').innerHTML='<div class="empty"><h2>Não foi possível carregar o acervo</h2><p>Tente novamente em alguns instantes.</p><button id="retry">Tentar novamente</button></div>';message(e.message);$('#retry').onclick=()=>start().catch(e=>message(e.message));});
 
 $('#detail-form').elements.originalUrl.addEventListener('invalid',()=>{$('#detail-form details').open=true;});
