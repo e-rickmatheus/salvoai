@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS salvoai_items (id text PRIMARY KEY, owner text NOT NULL, canonical text NOT NULL, data jsonb NOT NULL, UNIQUE(owner,canonical));
+CREATE TABLE IF NOT EXISTS salvoai_collections (owner text NOT NULL, name text NOT NULL, PRIMARY KEY(owner,name));
+CREATE TABLE IF NOT EXISTS salvoai_categories (owner text NOT NULL, path text NOT NULL, PRIMARY KEY(owner,path));
+CREATE TABLE IF NOT EXISTS salvoai_category_icons (owner text NOT NULL, path text NOT NULL, icon text NOT NULL, PRIMARY KEY(owner,path));
+CREATE TABLE IF NOT EXISTS salvoai_preferences (owner text NOT NULL, key text NOT NULL, value text NOT NULL, PRIMARY KEY(owner,key));
+ALTER TABLE salvoai_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salvoai_collections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salvoai_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salvoai_category_icons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salvoai_preferences ENABLE ROW LEVEL SECURITY;

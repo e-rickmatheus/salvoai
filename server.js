@@ -6,11 +6,11 @@ import { openStore } from './lib/store.js';
 import { createProcessor, aiStatus, chat } from './lib/local-ai.js';
 import { semanticSearch } from './lib/semantic.js';
 import { iconBank } from './lib/categories.js';
+import { readJson } from './lib/http-body.js';
 
-export function createApp(dbPath = process.env.SALVOAI_DB || 'data/salvoai.sqlite') {
-  const store = openStore(dbPath);
-  const processor = createProcessor(store);
-  const server = http.createServer(async(req,res)=>{
+export function createHandler(store, { cloud = false, dbPath = ':memory:', origin } = {}) {
+  const processor = cloud ? null : createProcessor(store);
+  return async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     res.setHeader('Referrer-Policy','no-referrer');
@@ -19,50 +19,50 @@ export function createApp(dbPath = process.env.SALVOAI_DB || 'data/salvoai.sqlit
     try {
       // Impede DNS rebinding e operações originadas em outros sites. Não é autenticação.
       const host = req.headers.host || '';
-      if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) return json(403,{error:'Acesso disponível somente em localhost.'});
-      if(req.headers.origin && req.headers.origin !== `http://${host}`) return json(403,{error:'Origem não autorizada.'});
+      if (cloud ? host !== new URL(origin).host : !/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) return json(403,{error:'Host não autorizado.'});
+      if(req.headers.origin && req.headers.origin !== (cloud ? origin : `http://${host}`)) return json(403,{error:'Origem não autorizada.'});
       const url=new URL(req.url,`http://${host}`);
       if(url.pathname.startsWith('/api/')) {
+        if(req.method==='GET'&&url.pathname==='/api/runtime') return json(200,{cloud,localAI:!cloud});
+        if(cloud&&['/api/chat','/api/search/semantic'].includes(url.pathname))return json(503,{error:'A IA local está disponível na versão que roda no seu computador.'});
         let body={};
         if(['POST','PATCH','DELETE'].includes(req.method)) {
-          if(!req.headers['content-type']?.startsWith('application/json')) return json(415,{error:'Envie JSON.'});
-          const chunks=[];let size=0;
-          for await (const chunk of req) {size+=chunk.length; if(size>16*1024*1024) return json(413,{error:'Envie lotes menores que 16 MB.'}); chunks.push(chunk);}
-          body=JSON.parse(Buffer.concat(chunks).toString() || '{}');
+          body=await readJson(req,(cloud?4:16)*1024*1024);
         }
-        if(req.method==='GET'&&url.pathname==='/api/library') return json(200,{items:store.all().map(({coverData,...item})=>({...item,hasCover:!!coverData})),collections:store.collections(),categories:store.categories(),categoryIcons:store.categoryIcons(),iconBank});
-        if(req.method==='GET'&&url.pathname==='/api/ai/status') return json(200,await aiStatus());
-        if(req.method==='GET'&&url.pathname==='/api/jobs') return json(200,processor.jobs());
-        if(req.method==='POST'&&url.pathname==='/api/chat') return json(200,await chat(store.all(),body.question,body.model));
-        if(req.method==='POST'&&url.pathname==='/api/search/semantic')return json(200,{results:await semanticSearch(store.all(),body.query)});
-        if(req.method==='POST'&&url.pathname==='/api/categories'){store.createCategory(body.path,body.icon);return json(200,{ok:true});}
-        if(req.method==='PATCH'&&url.pathname==='/api/categories'){store.renameCategory(body.path,body.nextPath,body.icon);return json(200,{ok:true});}
-        if(req.method==='DELETE'&&url.pathname==='/api/categories'){store.removeCategory(body.path);return json(200,{ok:true});}
+        if(req.method==='GET'&&url.pathname==='/api/library') return json(200,{items:(await store.all()).map(({coverData,...item})=>({...item,hasCover:!!coverData})),collections:await store.collections(),categories:await store.categories(),categoryIcons:await store.categoryIcons(),iconBank});
+        if(req.method==='GET'&&url.pathname==='/api/ai/status') return json(200,cloud?{online:false,models:[],transcription:false,cloud:true}:await aiStatus());
+        if(req.method==='GET'&&url.pathname==='/api/jobs') return json(200,cloud?[]:processor.jobs());
+        if(req.method==='POST'&&url.pathname==='/api/chat') return json(200,await chat(await store.all(),body.question,body.model));
+        if(req.method==='POST'&&url.pathname==='/api/search/semantic')return json(200,{results:await semanticSearch(await store.all(),body.query)});
+        if(req.method==='POST'&&url.pathname==='/api/categories'){await store.createCategory(body.path,body.icon);return json(200,{ok:true});}
+        if(req.method==='PATCH'&&url.pathname==='/api/categories'){await store.renameCategory(body.path,body.nextPath,body.icon);return json(200,{ok:true});}
+        if(req.method==='DELETE'&&url.pathname==='/api/categories'){await store.removeCategory(body.path);return json(200,{ok:true});}
         if(req.method==='POST'&&url.pathname==='/api/links') {
           if(!Array.isArray(body.links)||body.links.some(x=>typeof x!=='string')) throw Error('Lista de links inválida.');
-          const results=store.batch(body.links);
-          if(dbPath!==':memory:')for(const result of results)if(result.status==='saved')processor.enqueue(result.id,process.env.SALVOAI_AUTO_PROCESS==='0'?'preview':'full');
+          const results=await store.batch(body.links);
+          if(!cloud&&dbPath!==':memory:')for(const result of results)if(result.status==='saved')processor.enqueue(result.id,process.env.SALVOAI_AUTO_PROCESS==='0'?'preview':'full');
           return json(200,{results});
         }
-        if(req.method==='POST'&&url.pathname==='/api/collections') {store.createCollection(body.name);return json(200,{ok:true});}
+        if(req.method==='POST'&&url.pathname==='/api/collections') {await store.createCollection(body.name);return json(200,{ok:true});}
         if(req.method==='GET'&&url.pathname==='/api/export') {
-          res.setHeader('Content-Disposition','attachment; filename="salvoai-backup.json"'); return json(200,store.export());
+          res.setHeader('Content-Disposition','attachment; filename="salvoai-backup.json"'); return json(200,await store.export());
         }
-        if(req.method==='POST'&&url.pathname==='/api/import') return json(200,store.import(body));
+        if(req.method==='POST'&&url.pathname==='/api/import') return json(200,await store.import(body));
         const match=url.pathname.match(/^\/api\/items\/([a-z0-9-]+)$/);
         const processMatch=url.pathname.match(/^\/api\/items\/([a-z0-9-]+)\/process$/);
         if(processMatch&&req.method==='POST'){
-          if(!store.all().some(x=>x.id===processMatch[1]))return json(404,{error:'Item não encontrado.'});
+          if(cloud)return json(503,{error:'O processamento local está disponível na versão do computador.'});
+          if(!(await store.all()).some(x=>x.id===processMatch[1]))return json(404,{error:'Item não encontrado.'});
           if(!['preview','full','text'].includes(body.mode||'full'))throw Error('Modo inválido.');
           processor.enqueue(processMatch[1],body.mode||'full');return json(202,{ok:true});
         }
         const coverMatch=url.pathname.match(/^\/api\/items\/([a-z0-9-]+)\/cover$/);
         if(coverMatch&&req.method==='GET'){
-          const item=store.all().find(x=>x.id===coverMatch[1]);if(!item?.coverData)return json(404,{error:'Capa indisponível.'});
+          const item=(await store.all()).find(x=>x.id===coverMatch[1]);if(!item?.coverData)return json(404,{error:'Capa indisponível.'});
           const [header,encoded]=item.coverData.split(',');res.writeHead(200,{'Content-Type':header.slice(5).split(';')[0]});res.end(Buffer.from(encoded,'base64'));return;
         }
-        if(match&&req.method==='PATCH') return json(200,store.update(match[1],body));
-        if(match&&req.method==='DELETE') {store.remove(match[1]);return json(200,{ok:true});}
+        if(match&&req.method==='PATCH') return json(200,await store.update(match[1],body));
+        if(match&&req.method==='DELETE') {await store.remove(match[1]);return json(200,{ok:true});}
         return json(404,{error:'Recurso não encontrado.'});
       }
       if(req.method!=='GET') return json(405,{error:'Método inválido.'});
@@ -78,8 +78,12 @@ export function createApp(dbPath = process.env.SALVOAI_DB || 'data/salvoai.sqlit
       res.writeHead(200,{'Content-Type':file[1]+'; charset=utf-8'});
       let asset=await readFile(new URL('./public/'+file[0],import.meta.url));
       res.end(asset);
-    } catch(e){json(400,{error:e.message});}
-  });
+    } catch(e){json(e.statusCode||(cloud&&e.code?503:400),{error:cloud&&e.code?'O banco não respondeu. Tente novamente.':e.message});}
+  };
+}
+export function createApp(dbPath = process.env.SALVOAI_DB || 'data/salvoai.sqlite') {
+  const store = openStore(dbPath);
+  const server = http.createServer(createHandler(store,{dbPath}));
   server.on('close',()=>store.close());
   return server;
 }

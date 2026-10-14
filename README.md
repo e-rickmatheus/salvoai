@@ -1,6 +1,10 @@
 # SALVOAI
 
-Aplicativo pessoal de conteúdos salvos. Primeira versão local, sem serviços pagos, telemetria ou dependências npm. Requer **Node.js 24.15 ou superior**, disponível neste computador. O `node:sqlite` nativo fornece SQLite; seu grau de estabilidade depende da versão do Node.
+Aplicativo de conteúdos salvos com versão local (SQLite e IA no computador) e integração online (PostgreSQL e contas Supabase). Requer **Node.js 24**, preferencialmente 24.15 ou superior. O `node:sqlite` nativo fornece SQLite na versão local.
+
+## Publicar online
+
+Veja [configuração na Vercel, banco e plano de migração](docs/CLOUD.md). O banco usa PostgreSQL padrão, a estrutura SQL está no repositório e há uma ferramenta de backup completo para trocar de fornecedor. Na versão online, cada conta acessa apenas o próprio acervo. Recursos de IA local continuam disponíveis na instalação do computador.
 
 ## Abrir no Windows
 
@@ -11,7 +15,7 @@ Set-Location -LiteralPath 'D:\ESTUDOS\Projetos Vibe Coding\SALVOAI'
 npm.cmd start
 ```
 
-Abra **http://127.0.0.1:3210** no navegador. Mantenha o terminal aberto. Para encerrar, pressione `Ctrl+C`. Para reabrir, execute o mesmo comando. Não precisa executar `npm install`.
+Em um clone novo, execute `npm.cmd ci` antes de iniciar. Abra **http://127.0.0.1:3210** no navegador. Mantenha o terminal aberto. Para encerrar, pressione `Ctrl+C`. Para reabrir, execute o mesmo comando.
 
 Se a porta estiver ocupada, execute `$env:PORT='3212'` antes de iniciar e abra a nova porta. O arquivo `.env.example` documenta opções; esta versão lê variáveis do processo e **não carrega `.env` automaticamente**. Para alterar o banco: `$env:SALVOAI_DB='data/outro.sqlite'`. Remova a variável com `Remove-Item Env:SALVOAI_DB` para voltar ao acervo padrão.
 
