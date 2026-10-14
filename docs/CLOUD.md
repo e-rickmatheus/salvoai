@@ -42,6 +42,14 @@ Ollama, Whisper, OCR e extração automática continuam na instalação local. A
 
 Limites atuais na Vercel: arquivos JSON de até 4 MB por importação, resposta de até 4 MB, capas de até 2 MB enviadas pela interface. Backups maiores devem usar a ferramenta administrativa abaixo. O acervo completo ainda é carregado no navegador; para bibliotecas grandes, adicione paginação e busca no servidor. Capas no banco consomem a quota de armazenamento PostgreSQL; migração para armazenamento de objetos é uma evolução possível.
 
+## Inatividade, pausa e proteção dos dados
+
+Conferido em 14/10/2026 na [documentação oficial de pausa](https://supabase.com/docs/guides/platform/free-project-pausing): projetos Free com pouca atividade de banco durante 7 dias podem ser pausados. Baixa atividade não é apenas deixar de abrir o painel; requisições reais do aplicativo contam, mas não existe garantia de que uma visita ocasional seja suficiente. O proprietário recebe avisos por e-mail. Abrir o SALVOAI não reativa automaticamente um projeto já pausado: é necessário usar Resume project no painel Supabase.
+
+A pausa não apaga imediatamente o conteúdo. A documentação atual informa até 1 ano para restaurar o projeto pelo painel, preservando dados e configuração. Depois desse prazo, a recuperação pode exigir baixar os backups ainda disponíveis e restaurar em outro projeto; não dependa dessa possibilidade como única cópia. A exclusão definitiva do projeto remove os backups associados. Essas regras podem mudar: consulte a fonte antes de depender dos prazos.
+
+No plano gratuito, o Supabase recomenda [exportações regulares e backups externos](https://supabase.com/docs/guides/platform/backups). A exportação JSON por conta e a ferramenta administrativa abaixo já estão implementadas. Ainda não há agendamento nem destino de backup automático configurado. Uma rotina de consultas pode gerar atividade, mas não substitui um backup externo e não garante disponibilidade. Backups automáticos precisam de destino separado, retenção, criptografia, credenciais privadas e verificação periódica de restauração.
+
 ## Trocar o banco mantendo as contas
 
 1. Suspenda gravações durante a cópia final. Faça backup e mantenha o banco antigo disponível até validar a mudança.
