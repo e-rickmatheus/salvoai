@@ -6,6 +6,8 @@ import { schema,runStoreTransaction } from '../lib/postgres-store.js';
 import { createCloudHandler,requestOrigin,responseBuffer } from '../api/index.js';
 import { sessionCookies,readCookies,clearSessionCookies } from '../lib/cloud-auth.js';
 import { exportCloudSnapshot,importCloudSnapshot } from '../scripts/cloud-backup.mjs';
+import { postgresConfig } from '../lib/postgres-config.js';
+import { X509Certificate } from 'node:crypto';
 
 test('PostgreSQL: persistência, isolamento de contas, categorias e rollback atômico',async()=>{
   const db=new PGlite();await db.exec(schema);
@@ -90,4 +92,13 @@ test('Cookies seguros e origem de produção não aceitam configuração insegur
   assert.equal(requestOrigin({headers:{host:'salvoai.example'}},{SALVOAI_PUBLIC_URL:'https://salvoai.example'}),'https://salvoai.example');
   assert.equal(requestOrigin({headers:{host:'evil.example'}},{SALVOAI_PUBLIC_URL:'https://salvoai.example'}),null);
   assert.throws(()=>requestOrigin({headers:{host:'salvoai.example'}},{SALVOAI_PUBLIC_URL:'http://salvoai.example'}));
+});
+
+test('Conexão PostgreSQL verifica o certificado oficial e permite migrar de fornecedor',()=>{
+  const config=postgresConfig('postgresql://test:fake@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require',{});
+  assert.equal(config.ssl.rejectUnauthorized,true);assert.ok(!config.connectionString.includes('sslmode'));
+  const certificate=new X509Certificate(config.ssl.ca);assert.equal(certificate.ca,true);assert.ok(Date.parse(certificate.validTo)>Date.now());
+  const other=postgresConfig('postgresql://test:fake@db.example/postgres?sslmode=disable',{});
+  assert.equal(other.ssl.rejectUnauthorized,true);assert.equal(other.ssl.ca,undefined);
+  const custom=postgresConfig('postgresql://test:fake@db.example/postgres',{DATABASE_CA_PEM:config.ssl.ca});assert.equal(custom.ssl.ca,config.ssl.ca);
 });

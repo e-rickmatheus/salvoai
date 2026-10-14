@@ -3,6 +3,7 @@ import { mkdir,readFile,writeFile } from 'node:fs/promises';
 import { dirname,resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { schema } from '../lib/postgres-store.js';
+import { postgresConfig } from '../lib/postgres-config.js';
 
 const tables={salvoai_items:['id','owner','canonical','data'],salvoai_collections:['owner','name'],salvoai_categories:['owner','path'],salvoai_category_icons:['owner','path','icon'],salvoai_preferences:['owner','key','value']};
 export async function exportCloudSnapshot(client) {
@@ -34,7 +35,7 @@ async function main() {
   const [mode,path]=process.argv.slice(2);
   if(!['export','import'].includes(mode)||!path)throw Error('Uso: node scripts/cloud-backup.mjs export|import caminho.json');
   if(!process.env.DATABASE_URL)throw Error('Defina DATABASE_URL no ambiente privado.');
-  const client=new pg.Client({connectionString:process.env.DATABASE_URL,connectionTimeoutMillis:10000});
+  const client=new pg.Client({...postgresConfig(process.env.DATABASE_URL),connectionTimeoutMillis:10000});
   await client.connect();
   try {
     if(mode==='export') {const snapshot=await exportCloudSnapshot(client);await mkdir(dirname(resolve(path)),{recursive:true});await writeFile(path,JSON.stringify(snapshot,null,2),{flag:'wx'});console.log('Backup criado em '+resolve(path));}

@@ -25,6 +25,8 @@ Cada requisição ao banco usa uma transação e um bloqueio por conta. Importa�
 
 A chave publishable não é a senha nem a chave service_role. Nunca coloque DATABASE_URL ou chaves privadas no Git, em URLs públicas ou no código do navegador. Alterou a senha do banco? Atualize DATABASE_URL e faça novo deployment.
 
+O certificado público oficial do Supabase está em `db/supabase-ca.crt`, obtido pelo link Download certificate do painel Database Settings. `lib/postgres-config.js` usa esse certificado para hosts Supabase e mantém a verificação TLS habilitada. Para outro fornecedor, o driver usa as autoridades confiáveis do sistema; se ele exigir uma CA própria, configure `DATABASE_CA_PEM`. Parâmetros da URI não podem desativar a verificação em conexões externas.
+
 4. Em Supabase → Authentication → URL Configuration, defina Site URL como o domínio de produção e adicione `https://salvoai-ebon.vercel.app/auth/callback` aos Redirect URLs.
 5. Mantenha confirmação de e-mail habilitada. O envio padrão do Supabase tem limites e restrições; para cadastros de outras pessoas, configure SMTP próprio ou um provedor de login. O limite de usuários incluídos no plano não equivale à cota de envio de e-mails. Não desative confirmação apenas para contornar essas restrições.
 6. Publique o commit em main ou faça Redeploy após alterar variáveis. O servidor cria as tabelas na primeira requisição autenticada; `db/schema.sql` também pode ser aplicado previamente pelo SQL Editor.

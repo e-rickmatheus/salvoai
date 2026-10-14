@@ -69,6 +69,7 @@ return async function handler(req,res) {
     }
     if(session.cookies.length)res.setHeader('Set-Cookie',session.cookies);
     if(path==='/')return await createHandler(null,{cloud:true,origin})(req,res);
+    if(['/api/runtime','/api/jobs','/api/ai/status'].includes(path)&&req.method==='GET')return await createHandler(null,{cloud:true,origin})(req,res);
     const output=await storeRunner(async store=>{
       const buffer=responseBuffer();await createHandler(store,{cloud:true,origin})(req,buffer);
       if(buffer.body&&Buffer.byteLength(buffer.body)>4*1024*1024){buffer.writeHead(413,{'Content-Type':'application/json; charset=utf-8'});buffer.end(JSON.stringify({error:'O resultado excedeu o limite online de 4 MB. Exporte o banco pelo painel ou reduza o tamanho das capas.'}));}
